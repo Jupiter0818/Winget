@@ -1,0 +1,58 @@
+# ==========================================
+# Windget .gitignore
+# ==========================================
+
+# Build directories
+build/
+bin/
+out/
+dist/
+cmake-build-*/
+.cache/
+
+# Executables and Libraries
+*.exe
+*.dll
+*.so
+*.dylib
+*.a
+*.lib
+*.obj
+*.o
+*.ilk
+*.pdb
+*.exp
+
+# CMake generated files
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+compile_commands.json
+CTestTestfile.cmake
+
+# Visual Studio & VS Code
+.vs/
+*.sln
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+.idea/
+
+# Local runtime configs and temp files
+config.json
+*.log
+*.tmp
+scratch/
+
+# Operating System files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.DS_Store
+._*

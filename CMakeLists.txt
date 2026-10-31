@@ -1,0 +1,29 @@
+cmake_minimum_required(VERSION 3.20)
+
+project(Windget LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+add_executable(Windget WIN32
+    src/main.cpp
+    src/graphics/D2DRenderer.cpp
+    src/core/DesktopManager.cpp
+    src/core/WidgetWindow.cpp
+    src/core/WidgetManager.cpp
+    src/core/ConfigManager.cpp
+    src/widgets/ClockWidget.cpp
+    src/utils/JsonUtils.cpp
+)
+
+target_include_directories(Windget PRIVATE
+    src
+)
+
+target_link_libraries(Windget PRIVATE
+    user32
+    gdi32
+    d2d1
+    dwrite
+    ole32
+)
