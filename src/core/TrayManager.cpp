@@ -1,0 +1,382 @@
+#include "core/TrayManager.h"
+#include "core/WidgetManager.h"
+#include "core/ConfigManager.h"
+#include "core/AutoStartManager.h"
+#include <cmath>
+#include <cstdint>
+
+namespace Windget {
+
+TrayManager& TrayManager::GetInstance()
+{
+    static TrayManager instance;
+    return instance;
+}
+
+TrayManager::TrayManager()
+{
+    m_taskbarCreatedMsg = RegisterWindowMessageW(L"TaskbarCreated");
+}
+
+TrayManager::~TrayManager()
+{
+    Shutdown();
+}
+
+bool TrayManager::Initialize(HINSTANCE hInstance)
+{
+    m_hInstance = hInstance;
+
+    if (!CreateMessageWindow(hInstance))
+    {
+        return false;
+    }
+
+    m_hIcon = CreateAppTrayIcon();
+    return AddOrUpdateTrayIcon();
+}
+
+void TrayManager::Shutdown()
+{
+    RemoveTrayIcon();
+
+    if (m_hIcon)
+    {
+        DestroyIcon(m_hIcon);
+        m_hIcon = nullptr;
+    }
+
+    if (m_hwnd && IsWindow(m_hwnd))
+    {
+        DestroyWindow(m_hwnd);
+        m_hwnd = nullptr;
+    }
+}
+
+bool TrayManager::CreateMessageWindow(HINSTANCE hInstance)
+{
+    WNDCLASSW wc{};
+    wc.lpfnWndProc = StaticTrayWindowProc;
+    wc.hInstance = hInstance;
+    wc.lpszClassName = TRAY_CLASS_NAME;
+
+    RegisterClassW(&wc);
+
+    // 使用无边框隐藏顶级窗口以正确接收系统广播 (如 TaskbarCreated)
+    m_hwnd = CreateWindowExW(
+        0,
+        TRAY_CLASS_NAME,
+        L"Windget_TrayReceiver",
+        WS_POPUP,
+        0, 0, 0, 0,
+        nullptr,
+        nullptr,
+        hInstance,
+        this
+    );
+
+    return (m_hwnd != nullptr);
+}
+
+HICON TrayManager::CreateAppTrayIcon()
+{
+    int size = 32;
+    HDC hdc = GetDC(nullptr);
+    HDC memDC = CreateCompatibleDC(hdc);
+
+    BITMAPINFO bmi{};
+    bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+    bmi.bmiHeader.biWidth = size;
+    bmi.bmiHeader.biHeight = -size; // top-down 坐标
+    bmi.bmiHeader.biPlanes = 1;
+    bmi.bmiHeader.biBitCount = 32;
+    bmi.bmiHeader.biCompression = BI_RGB;
+
+    uint32_t* pixels = nullptr;
+    HBITMAP hColorBmp = CreateDIBSection(
+        memDC,
+        &bmi,
+        DIB_RGB_COLORS,
+        reinterpret_cast<void**>(&pixels),
+        nullptr,
+        0
+    );
+    HBITMAP hMaskBmp = CreateCompatibleBitmap(hdc, size, size);
+
+    if (hColorBmp && pixels)
+    {
+        float cx = 15.5f;
+        float cy = 15.5f;
+        float radius = 13.5f;
+
+        for (int y = 0; y < size; ++y)
+        {
+            for (int x = 0; x < size; ++x)
+            {
+                float dx = x - cx;
+                float dy = y - cy;
+                float dist = std::sqrt(dx * dx + dy * dy);
+                int idx = y * size + x;
+
+                if (dist <= radius)
+                {
+                    uint8_t a = 255;
+                    uint8_t r = 26;
+                    uint8_t g = 30;
+                    uint8_t b = 40;
+
+                    // 浅青外环
+                    if (dist >= radius - 2.0f)
+                    {
+                        r = 0; g = 168; b = 255;
+                    }
+                    // 时针向 10 点
+                    else if (dx <= 0 && dy <= 0 && std::abs(dx - dy) <= 1.2f && dist <= 7.0f)
+                    {
+                        r = 255; g = 255; b = 255;
+                    }
+                    // 分针向 2 点
+                    else if (dx >= 0 && dy <= 0 && std::abs(dx + dy) <= 1.2f && dist <= 9.0f)
+                    {
+                        r = 255; g = 255; b = 255;
+                    }
+                    // 中心圆点
+                    else if (dist <= 2.0f)
+                    {
+                        r = 0; g = 210; b = 255;
+                    }
+
+                    pixels[idx] = (static_cast<uint32_t>(a) << 24) |
+                                  (static_cast<uint32_t>(r) << 16) |
+                                  (static_cast<uint32_t>(g) << 8) |
+                                  static_cast<uint32_t>(b);
+                }
+                else
+                {
+                    pixels[idx] = 0;
+                }
+            }
+        }
+    }
+
+    ICONINFO ii{};
+    ii.fIcon = TRUE;
+    ii.hbmColor = hColorBmp;
+    ii.hbmMask = hMaskBmp;
+    HICON hIcon = CreateIconIndirect(&ii);
+
+    if (hColorBmp) DeleteObject(hColorBmp);
+    if (hMaskBmp) DeleteObject(hMaskBmp);
+    DeleteDC(memDC);
+    ReleaseDC(nullptr, hdc);
+
+    return hIcon ? hIcon : LoadIconW(nullptr, MAKEINTRESOURCEW(32512));
+}
+
+bool TrayManager::AddOrUpdateTrayIcon()
+{
+    if (!m_hwnd)
+    {
+        return false;
+    }
+
+    ZeroMemory(&m_nid, sizeof(m_nid));
+    m_nid.cbSize = sizeof(NOTIFYICONDATAW);
+    m_nid.hWnd = m_hwnd;
+    m_nid.uID = 1;
+    m_nid.uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP | NIF_SHOWTIP;
+    m_nid.uCallbackMessage = WM_TRAYICON;
+    m_nid.hIcon = m_hIcon;
+
+    std::wstring tip = L"Windget 桌面小组件";
+    wcsncpy_s(m_nid.szTip, tip.c_str(), _TRUNCATE);
+
+    DWORD msg = m_iconAdded ? NIM_MODIFY : NIM_ADD;
+    BOOL res = Shell_NotifyIconW(msg, &m_nid);
+    if (res)
+    {
+        m_iconAdded = true;
+    }
+    return (res != FALSE);
+}
+
+void TrayManager::RemoveTrayIcon()
+{
+    if (m_iconAdded && m_hwnd)
+    {
+        Shell_NotifyIconW(NIM_DELETE, &m_nid);
+        m_iconAdded = false;
+    }
+}
+
+void TrayManager::ShowBalloonNotification(const std::wstring& title, const std::wstring& message)
+{
+    if (!m_iconAdded || !m_hwnd)
+    {
+        return;
+    }
+
+    NOTIFYICONDATAW nid = m_nid;
+    nid.uFlags |= NIF_INFO;
+    nid.dwInfoFlags = NIIF_INFO;
+    wcsncpy_s(nid.szInfoTitle, title.c_str(), _TRUNCATE);
+    wcsncpy_s(nid.szInfo, message.c_str(), _TRUNCATE);
+    nid.uTimeout = 3000;
+    Shell_NotifyIconW(NIM_MODIFY, &nid);
+}
+
+void TrayManager::ShowContextMenu()
+{
+    HMENU hMenu = CreatePopupMenu();
+    HMENU hSubAdd = CreatePopupMenu();
+
+    AppendMenuW(hMenu, MF_STRING | MF_GRAYED, IDM_TRAY_TITLE, L"Windget 桌面组件");
+    AppendMenuW(hMenu, MF_SEPARATOR, 0, nullptr);
+
+    // ➕ 添加小组件子菜单
+    AppendMenuW(hSubAdd, MF_STRING, IDM_TRAY_ADD_CLOCK, L"🕒 时钟组件 (Clock)");
+    AppendMenuW(hMenu, MF_POPUP, reinterpret_cast<UINT_PTR>(hSubAdd), L"➕ 添加小组件");
+
+    AppendMenuW(hMenu, MF_STRING, IDM_TRAY_REFRESH_ALL, L"🔄 刷新全部组件");
+    AppendMenuW(hMenu, MF_STRING, IDM_TRAY_TOGGLE_SHOW, L"👁️ 显示 / 隐藏全部");
+    AppendMenuW(hMenu, MF_STRING, IDM_TRAY_RESET_POSITION, L"💻 恢复默认位置");
+
+    AppendMenuW(hMenu, MF_SEPARATOR, 0, nullptr);
+
+    // 开机自启动
+    bool autoStart = AutoStartManager::GetInstance().IsAutoStartEnabled();
+    UINT autoStartFlags = MF_STRING | (autoStart ? MF_CHECKED : MF_UNCHECKED);
+    AppendMenuW(hMenu, autoStartFlags, IDM_TRAY_AUTO_START, L"🚀 开机自启动");
+
+    AppendMenuW(hMenu, MF_STRING, IDM_TRAY_OPEN_CONFIG, L"📂 打开配置文件目录");
+    AppendMenuW(hMenu, MF_STRING, IDM_TRAY_GITHUB, L"🌐 项目 GitHub 主页");
+
+    AppendMenuW(hMenu, MF_SEPARATOR, 0, nullptr);
+    AppendMenuW(hMenu, MF_STRING, IDM_TRAY_EXIT, L"❌ 退出 Windget");
+
+    POINT pt;
+    GetCursorPos(&pt);
+
+    SetForegroundWindow(m_hwnd);
+    int cmd = TrackPopupMenu(
+        hMenu,
+        TPM_RETURNCMD | TPM_RIGHTBUTTON | TPM_NONOTIFY,
+        pt.x,
+        pt.y,
+        0,
+        m_hwnd,
+        nullptr
+    );
+    PostMessageW(m_hwnd, WM_NULL, 0, 0);
+
+    DestroyMenu(hSubAdd);
+    DestroyMenu(hMenu);
+
+    switch (cmd)
+    {
+    case IDM_TRAY_ADD_CLOCK:
+        WidgetManager::GetInstance().AddWidgetAtDefaultPosition("clock");
+        break;
+
+    case IDM_TRAY_REFRESH_ALL:
+        WidgetManager::GetInstance().RefreshAll();
+        break;
+
+    case IDM_TRAY_TOGGLE_SHOW:
+        WidgetManager::GetInstance().ToggleVisibility();
+        break;
+
+    case IDM_TRAY_RESET_POSITION:
+        WidgetManager::GetInstance().ResetPositions();
+        break;
+
+    case IDM_TRAY_AUTO_START:
+    {
+        bool currentState = AutoStartManager::GetInstance().IsAutoStartEnabled();
+        AutoStartManager::GetInstance().SetAutoStartEnabled(!currentState);
+        break;
+    }
+
+    case IDM_TRAY_OPEN_CONFIG:
+    {
+        std::wstring configDir = ConfigManager::GetInstance().GetConfigDirectory().wstring();
+        ShellExecuteW(nullptr, L"open", configDir.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+        break;
+    }
+
+    case IDM_TRAY_GITHUB:
+        ShellExecuteW(nullptr, L"open", L"https://github.com/Jupiter0818/Winget.git", nullptr, nullptr, SW_SHOWNORMAL);
+        break;
+
+    case IDM_TRAY_EXIT:
+        PostQuitMessage(0);
+        break;
+
+    default:
+        break;
+    }
+}
+
+LRESULT CALLBACK TrayManager::StaticTrayWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+{
+    TrayManager* pThis = nullptr;
+    if (uMsg == WM_NCCREATE)
+    {
+        auto* pCreate = reinterpret_cast<CREATESTRUCTW*>(lParam);
+        pThis = reinterpret_cast<TrayManager*>(pCreate->lpCreateParams);
+        SetWindowLongPtrW(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(pThis));
+    }
+    else
+    {
+        pThis = reinterpret_cast<TrayManager*>(GetWindowLongPtrW(hwnd, GWLP_USERDATA));
+    }
+
+    if (pThis)
+    {
+        return pThis->HandleMessage(uMsg, wParam, lParam);
+    }
+    return DefWindowProcW(hwnd, uMsg, wParam, lParam);
+}
+
+LRESULT TrayManager::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
+{
+    if (m_taskbarCreatedMsg != 0 && uMsg == m_taskbarCreatedMsg)
+    {
+        // 资源管理器 (explorer.exe) 重启后，自动恢复托盘图标
+        AddOrUpdateTrayIcon();
+        return 0;
+    }
+
+    switch (uMsg)
+    {
+    case WM_TRAYICON:
+    {
+        switch (LOWORD(lParam))
+        {
+        case WM_RBUTTONUP:
+        case WM_CONTEXTMENU:
+            ShowContextMenu();
+            break;
+
+        case WM_LBUTTONDBLCLK:
+            WidgetManager::GetInstance().ToggleVisibility();
+            break;
+
+        default:
+            break;
+        }
+        return 0;
+    }
+
+    case WM_DESTROY:
+        RemoveTrayIcon();
+        return 0;
+
+    default:
+        break;
+    }
+
+    return DefWindowProcW(m_hwnd, uMsg, wParam, lParam);
+}
+
+} // namespace Windget

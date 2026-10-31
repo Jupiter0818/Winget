@@ -1,5 +1,6 @@
 #include <windows.h>
 #include "core/WidgetManager.h"
+#include "core/TrayManager.h"
 
 // ===============================================
 // Windget - Windows Desktop Widget Engine
@@ -30,12 +31,15 @@ int WINAPI WinMain(
         }
     }
 
-    // 3. 初始化 WidgetManager 管理器
-    // 注意：Initialize 会自动读取 config.json 并恢复所有已保存的小组件实例及坐标
+    // 3. 初始化 WidgetManager 管理器 (自动恢复配置中的小组件)
     auto& widgetManager = Windget::WidgetManager::GetInstance();
     widgetManager.Initialize(hInstance);
 
-    // 4. 运行全局消息循环
+    // 4. 初始化系统托盘图标及常驻菜单
+    auto& trayManager = Windget::TrayManager::GetInstance();
+    trayManager.Initialize(hInstance);
+
+    // 5. 运行全局消息循环
     MSG msg{};
     while (GetMessageW(&msg, nullptr, 0, 0) > 0)
     {
@@ -43,7 +47,8 @@ int WINAPI WinMain(
         DispatchMessageW(&msg);
     }
 
-    // 5. 退出并清理全部小组件及 COM 环境
+    // 6. 退出并清理全部系统托盘、小组件及 COM 环境
+    trayManager.Shutdown();
     widgetManager.Shutdown();
     CoUninitialize();
 

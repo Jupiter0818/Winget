@@ -30,6 +30,18 @@ public:
     // 销毁指定 Widget 实例
     bool DestroyWidget(WidgetWindow* pWindow);
 
+    // 刷新全部小组件
+    void RefreshAll();
+
+    // 切换所有小组件显示/隐藏状态
+    void ToggleVisibility();
+
+    // 将所有小组件恢复至屏幕右侧安全工作区
+    void ResetPositions();
+
+    // 在屏幕右侧推荐位置添加指定类型的小组件
+    WidgetWindow* AddWidgetAtDefaultPosition(const std::string& type);
+
     // 销毁并关闭全部 Widget 实例 (同时保存最终状态)
     void Shutdown();
 

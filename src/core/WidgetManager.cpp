@@ -1,5 +1,6 @@
 #include "core/WidgetManager.h"
 #include "core/ConfigManager.h"
+#include "core/MonitorManager.h"
 #include "widgets/ClockWidget.h"
 #include <algorithm>
 
@@ -137,6 +138,117 @@ bool WidgetManager::DestroyWidget(WidgetWindow* pWindow)
     }
 
     return false;
+}
+
+void WidgetManager::RefreshAll()
+{
+    for (auto& w : m_windows)
+    {
+        if (w)
+        {
+            if (w->GetWidget())
+            {
+                w->GetWidget()->Update();
+            }
+            w->RequestRender();
+        }
+    }
+}
+
+void WidgetManager::ToggleVisibility()
+{
+    if (m_windows.empty())
+    {
+        return;
+    }
+
+    bool anyVisible = false;
+    for (const auto& w : m_windows)
+    {
+        if (w && w->IsVisible())
+        {
+            anyVisible = true;
+            break;
+        }
+    }
+
+    for (auto& w : m_windows)
+    {
+        if (w)
+        {
+            if (anyVisible)
+            {
+                w->Hide();
+            }
+            else
+            {
+                w->Show();
+                w->RequestRender();
+            }
+        }
+    }
+}
+
+void WidgetManager::ResetPositions()
+{
+    auto primary = MonitorManager::GetInstance().GetPrimaryMonitor();
+    int startX = primary.workArea.right - 360;
+    int startY = primary.workArea.top + 60;
+
+    for (size_t i = 0; i < m_windows.size(); ++i)
+    {
+        auto& window = m_windows[i];
+        if (window && window->GetHwnd())
+        {
+            int x = startX;
+            int y = startY + static_cast<int>(i) * 200;
+
+            if (y + 180 > primary.workArea.bottom)
+            {
+                x -= 340;
+                y = primary.workArea.top + 60;
+            }
+
+            SetWindowPos(
+                window->GetHwnd(),
+                nullptr,
+                x,
+                y,
+                0,
+                0,
+                SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE
+            );
+
+            window->SetPosition(x, y);
+
+            if (window->GetWidget())
+            {
+                ConfigManager::GetInstance().UpdateWidgetPosition(
+                    window->GetWidget()->GetId(),
+                    x,
+                    y
+                );
+            }
+            window->RequestRender();
+        }
+    }
+
+    ConfigManager::GetInstance().Save();
+}
+
+WidgetWindow* WidgetManager::AddWidgetAtDefaultPosition(const std::string& type)
+{
+    auto primary = MonitorManager::GetInstance().GetPrimaryMonitor();
+    int defaultX = primary.workArea.right - 360;
+    int defaultY = primary.workArea.top + 60 + static_cast<int>(m_windows.size()) * 200;
+
+    if (defaultY + 180 > primary.workArea.bottom)
+    {
+        defaultX -= 340;
+        defaultY = primary.workArea.top + 60;
+    }
+
+    return CreateWidget(type, defaultX, defaultY);
 }
 
 void WidgetManager::Shutdown()

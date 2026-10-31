@@ -42,8 +42,9 @@ public:
     const AppConfig& GetConfig() const { return m_config; }
     AppConfig& GetConfig() { return m_config; }
 
-    // 获取配置文件完整路径
+    // 获取配置文件完整路径与目录
     std::filesystem::path GetConfigFilePath() const { return m_configFilePath; }
+    std::filesystem::path GetConfigDirectory() const { return m_configFilePath.parent_path(); }
 
     // 重置并生成合理的默认配置
     void ResetToDefault();

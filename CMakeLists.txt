@@ -12,6 +12,9 @@ add_executable(Windget WIN32
     src/core/WidgetWindow.cpp
     src/core/WidgetManager.cpp
     src/core/ConfigManager.cpp
+    src/core/MonitorManager.cpp
+    src/core/TrayManager.cpp
+    src/core/AutoStartManager.cpp
     src/widgets/ClockWidget.cpp
     src/utils/JsonUtils.cpp
 )
@@ -26,4 +29,6 @@ target_link_libraries(Windget PRIVATE
     d2d1
     dwrite
     ole32
+    shell32
+    advapi32
 )

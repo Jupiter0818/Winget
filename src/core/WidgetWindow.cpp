@@ -1,6 +1,8 @@
 #include "core/WidgetWindow.h"
 #include "core/DesktopManager.h"
 #include "core/ConfigManager.h"
+#include "core/MonitorManager.h"
+#include "core/WidgetManager.h"
 #include <windowsx.h>
 #include <cmath>
 
@@ -52,12 +54,18 @@ bool WidgetWindow::Create(HINSTANCE hInstance, int x, int y)
     m_x = x;
     m_y = y;
 
-    float initialDpi = GetWindowDpi(nullptr);
+    // 根据坐标点精确定位所在显示器的物理 DPI (支持副屏多分辨率)
+    POINT initialPoint{ m_x, m_y };
+    MonitorInfo monitor = MonitorManager::GetInstance().GetMonitorForPoint(initialPoint);
+    float initialDpi = static_cast<float>(monitor.dpiX);
     float dpiScale = initialDpi / 96.0f;
     float padding = m_renderer.GetPadding();
 
     int initialWidth = static_cast<int>(std::ceil((m_widget->GetWidth() + padding * 2.0f) * dpiScale));
     int initialHeight = static_cast<int>(std::ceil((m_widget->GetHeight() + padding * 2.0f) * dpiScale));
+
+    // 屏幕越界自愈检查 (若外接显示器已拔掉，自动移回可见区域)
+    MonitorManager::GetInstance().EnsureVisibleOnScreen(m_x, m_y, initialWidth, initialHeight);
 
     HWND hwnd = CreateWindowExW(
         WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_LAYERED,
@@ -170,7 +178,7 @@ LRESULT WidgetWindow::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
         // 4. 初次绘制
         m_renderer.RenderWidget(m_hwnd, m_widget.get());
 
-        // 5. 按照 Widget 自身设定的更新周期开启定时器
+        // 5. 开启定时器
         uint32_t interval = m_widget->GetUpdateIntervalMs();
         if (interval > 0)
         {
@@ -197,11 +205,16 @@ LRESULT WidgetWindow::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
         break;
     }
 
-    // 处理 DPI 变更
+    // 处理跨屏 DPI 动态变更
     case WM_DPICHANGED:
     {
         UINT newDpi = HIWORD(wParam);
-        m_renderer.UpdateDpi(m_hwnd, static_cast<float>(newDpi), m_widget->GetWidth(), m_widget->GetHeight());
+        m_renderer.UpdateDpi(
+            m_hwnd,
+            static_cast<float>(newDpi),
+            m_widget->GetWidth(),
+            m_widget->GetHeight()
+        );
 
         auto* prcNewWindow = reinterpret_cast<RECT*>(lParam);
         m_x = prcNewWindow->left;
@@ -217,7 +230,39 @@ LRESULT WidgetWindow::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
             SWP_NOZORDER | SWP_NOACTIVATE
         );
 
+        // 同步更新坐标至配置
+        if (m_widget)
+        {
+            ConfigManager::GetInstance().UpdateWidgetPosition(m_widget->GetId(), m_x, m_y);
+            ConfigManager::GetInstance().Save();
+        }
+
         m_renderer.RenderWidget(m_hwnd, m_widget.get());
+        return 0;
+    }
+
+    // 显示器热插拔或分辨率变更事件
+    case WM_DISPLAYCHANGE:
+    {
+        MonitorManager::GetInstance().RefreshMonitors();
+        MonitorManager::GetInstance().EnsureVisibleOnScreen(
+            m_x,
+            m_y,
+            m_renderer.GetPhysicalWidth(),
+            m_renderer.GetPhysicalHeight()
+        );
+
+        SetWindowPos(
+            m_hwnd,
+            nullptr,
+            m_x,
+            m_y,
+            0,
+            0,
+            SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE
+        );
+
+        RequestRender();
         return 0;
     }
 
@@ -235,7 +280,7 @@ LRESULT WidgetWindow::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
         return 0;
     }
 
-    // 鼠标移动：移动小组件位置
+    // 鼠标移动：移动小组件位置 (天然支持多屏负坐标)
     case WM_MOUSEMOVE:
     {
         if (m_isDragging)
@@ -259,7 +304,7 @@ LRESULT WidgetWindow::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
         return 0;
     }
 
-    // 鼠标左键释放：结束拖动并保存最新位置
+    // 鼠标左键释放：结束拖动并持久化新位置
     case WM_LBUTTONUP:
     {
         if (m_isDragging)
@@ -267,7 +312,6 @@ LRESULT WidgetWindow::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
             m_isDragging = false;
             ReleaseCapture();
 
-            // 拖动完成后将当前位置保存到配置系统
             if (m_widget)
             {
                 ConfigManager::GetInstance().UpdateWidgetPosition(m_widget->GetId(), m_x, m_y);
@@ -288,8 +332,20 @@ LRESULT WidgetWindow::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
     case WM_RBUTTONUP:
     {
         HMENU hMenu = CreatePopupMenu();
-        std::wstring menuTitle = L"退出 Windget";
-        InsertMenuW(hMenu, 0, MF_BYPOSITION | MF_STRING, 1001, menuTitle.c_str());
+        HMENU hSubAdd = CreatePopupMenu();
+
+        AppendMenuW(hMenu, MF_STRING | MF_GRAYED, 1000, L"Windget 小组件");
+        AppendMenuW(hMenu, MF_SEPARATOR, 0, nullptr);
+
+        AppendMenuW(hSubAdd, MF_STRING, 1002, L"🕒 时钟组件 (Clock)");
+        AppendMenuW(hMenu, MF_POPUP, reinterpret_cast<UINT_PTR>(hSubAdd), L"➕ 添加小组件");
+
+        AppendMenuW(hMenu, MF_STRING, 1003, L"🔄 刷新此组件");
+        AppendMenuW(hMenu, MF_STRING, 1004, L"🗑️ 移除此组件");
+        AppendMenuW(hMenu, MF_STRING, 1005, L"💻 恢复默认位置");
+
+        AppendMenuW(hMenu, MF_SEPARATOR, 0, nullptr);
+        AppendMenuW(hMenu, MF_STRING, 1001, L"❌ 退出 Windget");
 
         POINT pt;
         GetCursorPos(&pt);
@@ -297,18 +353,41 @@ LRESULT WidgetWindow::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
         SetForegroundWindow(m_hwnd);
         int cmd = TrackPopupMenu(
             hMenu,
-            TPM_RETURNCMD | TPM_NONOTIFY | TPM_RIGHTBUTTON,
+            TPM_RETURNCMD | TPM_RIGHTBUTTON | TPM_NONOTIFY,
             pt.x,
             pt.y,
             0,
             m_hwnd,
             nullptr
         );
+        PostMessageW(m_hwnd, WM_NULL, 0, 0);
+
+        DestroyMenu(hSubAdd);
         DestroyMenu(hMenu);
 
         if (cmd == 1001)
         {
             PostQuitMessage(0);
+        }
+        else if (cmd == 1002)
+        {
+            WidgetManager::GetInstance().AddWidgetAtDefaultPosition("clock");
+        }
+        else if (cmd == 1003)
+        {
+            if (m_widget)
+            {
+                m_widget->Update();
+            }
+            RequestRender();
+        }
+        else if (cmd == 1004)
+        {
+            WidgetManager::GetInstance().DestroyWidget(this);
+        }
+        else if (cmd == 1005)
+        {
+            WidgetManager::GetInstance().ResetPositions();
         }
         return 0;
     }
@@ -318,7 +397,6 @@ LRESULT WidgetWindow::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
         KillTimer(m_hwnd, m_timerId);
         if (m_widget)
         {
-            // 窗口销毁时同步最新坐标
             ConfigManager::GetInstance().UpdateWidgetPosition(m_widget->GetId(), m_x, m_y);
             m_widget->Shutdown();
         }

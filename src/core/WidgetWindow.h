@@ -20,6 +20,10 @@ public:
     void Show();
     void Hide();
     void Close();
+    bool IsVisible() const { return m_hwnd && IsWindowVisible(m_hwnd); }
+
+    // 设置位置
+    void SetPosition(int x, int y) { m_x = x; m_y = y; }
 
     // 重新渲染当前帧
     void RequestRender();
