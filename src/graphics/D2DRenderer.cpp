@@ -1,5 +1,6 @@
 #include "graphics/D2DRenderer.h"
 #include "widgets/IWidget.h"
+#include "core/ThemeManager.h"
 #include <cmath>
 
 namespace Windget {
@@ -183,20 +184,10 @@ bool D2DRenderer::CreateDeviceResources()
         return false;
     }
 
-    // 创建通用卡片背景与阴影画刷
+    // 创建通用毛玻璃微光画刷
     m_dcRenderTarget->CreateSolidColorBrush(
-        D2D1::ColorF(0.11f, 0.11f, 0.13f, 0.85f),
-        m_cardBrush.GetAddressOf()
-    );
-
-    m_dcRenderTarget->CreateSolidColorBrush(
-        D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.10f),
-        m_borderBrush.GetAddressOf()
-    );
-
-    m_dcRenderTarget->CreateSolidColorBrush(
-        D2D1::ColorF(0.0f, 0.0f, 0.0f, 0.05f),
-        m_shadowBrush.GetAddressOf()
+        D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.20f),
+        m_glassHighlightBrush.GetAddressOf()
     );
 
     return true;
@@ -204,9 +195,9 @@ bool D2DRenderer::CreateDeviceResources()
 
 void D2DRenderer::DiscardDeviceResources()
 {
-    m_cardBrush.Reset();
-    m_borderBrush.Reset();
-    m_shadowBrush.Reset();
+    m_frostedGlassBrush.Reset();
+    m_glassBorderBrush.Reset();
+    m_glassHighlightBrush.Reset();
     m_dcRenderTarget.Reset();
 }
 
@@ -266,51 +257,115 @@ void D2DRenderer::RenderWidget(HWND hwnd, IWidget* pWidget)
     const float cardBottom = cardTop + m_cardHeight;
     const D2D1_RECT_F cardBounds = D2D1::RectF(cardLeft, cardTop, cardRight, cardBottom);
 
-    // 2. 柔和环境投影 (多层叠加产生自然的模糊散色与下沉感)
-    if (m_shadowBrush)
-    {
-        for (int i = 8; i >= 1; --i)
-        {
-            float spread = static_cast<float>(i) * 1.5f;
-            float offsetY = static_cast<float>(i) * 0.75f + 1.5f;
-            float alpha = 0.015f * static_cast<float>(9 - i);
-            m_shadowBrush->SetColor(D2D1::ColorF(0.0f, 0.0f, 0.0f, alpha));
+    // 2. 彻底去除外扩散阴影，直接渲染纯净现代的毛玻璃质感底色
+    bool isDark = ThemeManager::GetInstance().IsDarkMode();
 
-            D2D1_ROUNDED_RECT shadowRect = D2D1::RoundedRect(
-                D2D1::RectF(
-                    cardLeft - spread,
-                    cardTop - spread + offsetY,
-                    cardRight + spread,
-                    cardBottom + spread + offsetY
-                ),
-                CORNER_RADIUS + spread * 0.5f,
-                CORNER_RADIUS + spread * 0.5f
-            );
-            m_dcRenderTarget->FillRoundedRectangle(shadowRect, m_shadowBrush.Get());
-        }
+    // 构建动态毛玻璃背景画刷
+    D2D1_GRADIENT_STOP stops[2];
+    if (isDark)
+    {
+        // 深色毛玻璃：剔透微透黑曜石，左上柔光微亮，右下沉稳深邃
+        stops[0].position = 0.0f;
+        stops[0].color = D2D1::ColorF(0.12f, 0.13f, 0.17f, 0.78f);
+        stops[1].position = 1.0f;
+        stops[1].color = D2D1::ColorF(0.07f, 0.08f, 0.10f, 0.88f);
+    }
+    else
+    {
+        // 浅色毛玻璃：纯净剔透牛奶白，完美契合 Windows 11 Fluent 现代光感
+        stops[0].position = 0.0f;
+        stops[0].color = D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.84f);
+        stops[1].position = 1.0f;
+        stops[1].color = D2D1::ColorF(0.93f, 0.95f, 0.98f, 0.76f);
     }
 
-    // 3. 绘制卡片背景 (macOS 风格深色半透明圆角矩形)
+    ComPtr<ID2D1GradientStopCollection> stopCollection;
+    m_dcRenderTarget->CreateGradientStopCollection(
+        stops,
+        2,
+        D2D1_GAMMA_2_2,
+        D2D1_EXTEND_MODE_CLAMP,
+        stopCollection.GetAddressOf()
+    );
+
+    m_frostedGlassBrush.Reset();
+    m_dcRenderTarget->CreateLinearGradientBrush(
+        D2D1::LinearGradientBrushProperties(
+            D2D1::Point2F(cardBounds.left, cardBounds.top),
+            D2D1::Point2F(cardBounds.right, cardBounds.bottom)
+        ),
+        stopCollection.Get(),
+        m_frostedGlassBrush.GetAddressOf()
+    );
+
+    // 3. 构建高光折射玻璃微边框画刷 (Specular Glass Bevel)
+    D2D1_GRADIENT_STOP borderStops[2];
+    if (isDark)
+    {
+        borderStops[0].position = 0.0f;
+        borderStops[0].color = D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.28f);
+        borderStops[1].position = 1.0f;
+        borderStops[1].color = D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.08f);
+    }
+    else
+    {
+        borderStops[0].position = 0.0f;
+        borderStops[0].color = D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.95f);
+        borderStops[1].position = 1.0f;
+        borderStops[1].color = D2D1::ColorF(0.0f, 0.0f, 0.0f, 0.12f);
+    }
+
+    ComPtr<ID2D1GradientStopCollection> borderStopCollection;
+    m_dcRenderTarget->CreateGradientStopCollection(
+        borderStops,
+        2,
+        D2D1_GAMMA_2_2,
+        D2D1_EXTEND_MODE_CLAMP,
+        borderStopCollection.GetAddressOf()
+    );
+
+    m_glassBorderBrush.Reset();
+    m_dcRenderTarget->CreateLinearGradientBrush(
+        D2D1::LinearGradientBrushProperties(
+            D2D1::Point2F(cardBounds.left, cardBounds.top),
+            D2D1::Point2F(cardBounds.right, cardBounds.bottom)
+        ),
+        borderStopCollection.Get(),
+        m_glassBorderBrush.GetAddressOf()
+    );
+
+    // 4. 绘制毛玻璃圆角卡片背景
     D2D1_ROUNDED_RECT cardRect = D2D1::RoundedRect(
         cardBounds,
         CORNER_RADIUS,
         CORNER_RADIUS
     );
 
-    if (m_cardBrush)
+    if (m_frostedGlassBrush)
     {
-        m_cardBrush->SetColor(D2D1::ColorF(0.11f, 0.11f, 0.13f, 0.85f));
-        m_dcRenderTarget->FillRoundedRectangle(cardRect, m_cardBrush.Get());
+        m_dcRenderTarget->FillRoundedRectangle(cardRect, m_frostedGlassBrush.Get());
     }
 
-    // 4. 精致玻璃微光边框 (1px 白色半透明)
-    if (m_borderBrush)
+    // 5. 绘制玻璃边框
+    if (m_glassBorderBrush)
     {
-        m_borderBrush->SetColor(D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.10f));
-        m_dcRenderTarget->DrawRoundedRectangle(cardRect, m_borderBrush.Get(), 1.0f);
+        m_dcRenderTarget->DrawRoundedRectangle(cardRect, m_glassBorderBrush.Get(), 1.0f);
     }
 
-    // 5. 调用具体 Widget 自身的渲染逻辑
+    // 6. 绘制玻璃顶层微妙折射微光线 (模拟真实玻璃厚度内部微折射)
+    if (m_glassHighlightBrush)
+    {
+        m_glassHighlightBrush->SetColor(isDark ? D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.12f) : D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.65f));
+        D2D1_RECT_F innerHighlight = D2D1::RectF(
+            cardBounds.left + CORNER_RADIUS * 0.8f,
+            cardBounds.top + 1.0f,
+            cardBounds.right - CORNER_RADIUS * 0.8f,
+            cardBounds.top + 2.0f
+        );
+        m_dcRenderTarget->FillRectangle(innerHighlight, m_glassHighlightBrush.Get());
+    }
+
+    // 7. 调用具体 Widget 自身的渲染逻辑
     if (pWidget)
     {
         pWidget->Render(m_dcRenderTarget.Get(), m_dwriteFactory.Get(), cardBounds);

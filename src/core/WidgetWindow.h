@@ -34,6 +34,12 @@ public:
     int GetX() const { return m_x; }
     int GetY() const { return m_y; }
 
+    // 视觉卡片边界 (考虑阴影内衬 padding，用于像素级对齐)
+    RECT GetVisualCardBounds() const;
+
+    // 桌面网格与相邻小组件磁吸计算
+    POINT SnapPosition(int rawX, int rawY, bool isDuringDrag) const;
+
     // 注册全局窗口类 (单次初始化)
     static bool RegisterWindowClass(HINSTANCE hInstance);
 
@@ -52,8 +58,11 @@ private:
     int m_x = 200;
     int m_y = 200;
 
-    bool m_isDragging = false;
+    bool m_isMouseDown = false;
+    bool m_hasMovedSignificantly = false;
     POINT m_dragStart{};
+    POINT m_dragStartScreen{};
+    POINT m_initialWindowPos{};
     UINT_PTR m_timerId = 1;
 };
 

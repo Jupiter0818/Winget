@@ -21,6 +21,9 @@ struct WidgetConfig
 
 struct AppConfig
 {
+    std::string themeMode = "system"; // "system", "dark", "light"
+    bool snapToGrid = true;
+    bool lockPosition = false;
     std::vector<WidgetConfig> widgets;
 };
 
@@ -35,8 +38,19 @@ public:
     // 保存当前配置到 %APPDATA%\Windget\config.json
     bool Save();
 
-    // 更新小组件屏幕位置
+    // 更新小组件屏幕位置与外观主题
     void UpdateWidgetPosition(const std::string& id, int x, int y);
+    void UpdateWidgetTheme(const std::string& id, const std::string& theme);
+
+    // 全局深浅色外观模式 ("system", "dark", "light")
+    const std::string& GetThemeMode() const { return m_config.themeMode; }
+    void SetThemeMode(const std::string& mode) { m_config.themeMode = mode; }
+
+    // 桌面网格吸附与位置锁定设置
+    bool IsSnapToGrid() const { return m_config.snapToGrid; }
+    void SetSnapToGrid(bool enabled) { m_config.snapToGrid = enabled; }
+    bool IsLockPosition() const { return m_config.lockPosition; }
+    void SetLockPosition(bool locked) { m_config.lockPosition = locked; }
 
     // 获取完整应用配置
     const AppConfig& GetConfig() const { return m_config; }

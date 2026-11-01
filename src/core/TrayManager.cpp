@@ -1,6 +1,7 @@
 #include "core/TrayManager.h"
 #include "core/WidgetManager.h"
 #include "core/ConfigManager.h"
+#include "core/ThemeManager.h"
 #include "core/AutoStartManager.h"
 #include <cmath>
 #include <cstdint>
@@ -249,19 +250,34 @@ void TrayManager::ShowContextMenu()
 {
     HMENU hMenu = CreatePopupMenu();
     HMENU hSubAdd = CreatePopupMenu();
+    HMENU hSubTheme = CreatePopupMenu();
 
     AppendMenuW(hMenu, MF_STRING | MF_GRAYED, IDM_TRAY_TITLE, L"Windget 桌面组件");
     AppendMenuW(hMenu, MF_SEPARATOR, 0, nullptr);
+
+    // 全局深浅毛玻璃外观主题
+    AppThemeMode curMode = ThemeManager::GetInstance().GetThemeMode();
+    AppendMenuW(hSubTheme, MF_STRING | (curMode == AppThemeMode::System ? MF_CHECKED : 0), IDM_TRAY_THEME_SYSTEM, L"🌓 跟随系统 (System Default)");
+    AppendMenuW(hSubTheme, MF_STRING | (curMode == AppThemeMode::Dark ? MF_CHECKED : 0), IDM_TRAY_THEME_DARK, L"⬛ 深色毛玻璃 (Dark Frosted)");
+    AppendMenuW(hSubTheme, MF_STRING | (curMode == AppThemeMode::Light ? MF_CHECKED : 0), IDM_TRAY_THEME_LIGHT, L"⬜ 浅色毛玻璃 (Light Frosted)");
+    AppendMenuW(hMenu, MF_POPUP, reinterpret_cast<UINT_PTR>(hSubTheme), L"🎨 外观主题 (Theme)");
 
     // ➕ 添加小组件子菜单
     AppendMenuW(hSubAdd, MF_STRING, IDM_TRAY_ADD_CLOCK, L"🕒 时钟组件 (Clock)");
     AppendMenuW(hSubAdd, MF_STRING, IDM_TRAY_ADD_CALENDAR, L"📅 日历组件 (Calendar)");
     AppendMenuW(hSubAdd, MF_STRING, IDM_TRAY_ADD_SYSTEM, L"⚡ 硬件监控 (System)");
+    AppendMenuW(hSubAdd, MF_STRING, IDM_TRAY_ADD_MUSIC, L"🎵 音乐控制器 (Music)");
     AppendMenuW(hMenu, MF_POPUP, reinterpret_cast<UINT_PTR>(hSubAdd), L"➕ 添加小组件");
 
     AppendMenuW(hMenu, MF_STRING, IDM_TRAY_REFRESH_ALL, L"🔄 刷新全部组件");
     AppendMenuW(hMenu, MF_STRING, IDM_TRAY_TOGGLE_SHOW, L"👁️ 显示 / 隐藏全部");
     AppendMenuW(hMenu, MF_STRING, IDM_TRAY_RESET_POSITION, L"💻 恢复默认位置");
+
+    // 桌面网格吸附与位置锁定
+    bool isSnap = ConfigManager::GetInstance().IsSnapToGrid();
+    bool isLocked = ConfigManager::GetInstance().IsLockPosition();
+    AppendMenuW(hMenu, MF_STRING | (isSnap ? MF_CHECKED : 0), IDM_TRAY_SNAP_GRID, L"🧲 对齐到桌面网格 (Snap to Grid)");
+    AppendMenuW(hMenu, MF_STRING | (isLocked ? MF_CHECKED : 0), IDM_TRAY_LOCK_POSITION, L"🔒 锁定小组件位置 (Lock Position)");
 
     AppendMenuW(hMenu, MF_SEPARATOR, 0, nullptr);
 
@@ -291,11 +307,32 @@ void TrayManager::ShowContextMenu()
     );
     PostMessageW(m_hwnd, WM_NULL, 0, 0);
 
+    DestroyMenu(hSubTheme);
     DestroyMenu(hSubAdd);
     DestroyMenu(hMenu);
 
     switch (cmd)
     {
+    case IDM_TRAY_THEME_SYSTEM:
+        ThemeManager::GetInstance().SetThemeMode(AppThemeMode::System);
+        ConfigManager::GetInstance().SetThemeMode("system");
+        ConfigManager::GetInstance().Save();
+        WidgetManager::GetInstance().RefreshAll();
+        break;
+
+    case IDM_TRAY_THEME_DARK:
+        ThemeManager::GetInstance().SetThemeMode(AppThemeMode::Dark);
+        ConfigManager::GetInstance().SetThemeMode("dark");
+        ConfigManager::GetInstance().Save();
+        WidgetManager::GetInstance().RefreshAll();
+        break;
+
+    case IDM_TRAY_THEME_LIGHT:
+        ThemeManager::GetInstance().SetThemeMode(AppThemeMode::Light);
+        ConfigManager::GetInstance().SetThemeMode("light");
+        ConfigManager::GetInstance().Save();
+        WidgetManager::GetInstance().RefreshAll();
+        break;
     case IDM_TRAY_ADD_CLOCK:
         WidgetManager::GetInstance().AddWidgetAtDefaultPosition("clock");
         break;
@@ -306,6 +343,10 @@ void TrayManager::ShowContextMenu()
 
     case IDM_TRAY_ADD_SYSTEM:
         WidgetManager::GetInstance().AddWidgetAtDefaultPosition("system");
+        break;
+
+    case IDM_TRAY_ADD_MUSIC:
+        WidgetManager::GetInstance().AddWidgetAtDefaultPosition("music");
         break;
 
     case IDM_TRAY_REFRESH_ALL:
@@ -319,6 +360,22 @@ void TrayManager::ShowContextMenu()
     case IDM_TRAY_RESET_POSITION:
         WidgetManager::GetInstance().ResetPositions();
         break;
+
+    case IDM_TRAY_SNAP_GRID:
+    {
+        bool snap = !ConfigManager::GetInstance().IsSnapToGrid();
+        ConfigManager::GetInstance().SetSnapToGrid(snap);
+        ConfigManager::GetInstance().Save();
+        break;
+    }
+
+    case IDM_TRAY_LOCK_POSITION:
+    {
+        bool lock = !ConfigManager::GetInstance().IsLockPosition();
+        ConfigManager::GetInstance().SetLockPosition(lock);
+        ConfigManager::GetInstance().Save();
+        break;
+    }
 
     case IDM_TRAY_AUTO_START:
     {

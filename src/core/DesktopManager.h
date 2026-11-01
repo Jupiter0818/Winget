@@ -1,6 +1,7 @@
 #pragma once
 
 #include <windows.h>
+#include <vector>
 
 namespace Windget {
 
@@ -13,7 +14,7 @@ public:
     bool AttachToDesktop(HWND hwndWidget);
 
     // 从桌面层脱离
-    void DetachFromDesktop();
+    void DetachFromDesktop(HWND hwndWidget);
 
     // 检查并处理 Explorer 重启消息 (TaskbarCreated)
     bool HandleExplorerRestart(HWND hwndWidget, UINT uMsg);
@@ -32,7 +33,7 @@ private:
     DesktopManager& operator=(const DesktopManager&) = delete;
 
 private:
-    HWND m_hwndWidget = nullptr;
+    std::vector<HWND> m_attachedWidgets;
     HWND m_hProgman = nullptr;
     UINT m_taskbarCreatedMsg = 0;
 };

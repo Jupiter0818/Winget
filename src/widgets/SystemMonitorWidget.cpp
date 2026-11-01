@@ -1,4 +1,5 @@
 #include "widgets/SystemMonitorWidget.h"
+#include "core/ThemeManager.h"
 #include <windows.h>
 #include <algorithm>
 #include <iomanip>
@@ -229,6 +230,21 @@ void SystemMonitorWidget::Render(
             D2D1::ColorF(0.75f, 0.35f, 0.95f, 0.95f), // 优雅高雅紫
             m_memBarBrush.GetAddressOf()
         );
+    }
+
+    // 根据深浅主题动态调整标题、文字与底槽颜色
+    bool isDark = ThemeManager::GetInstance().IsDarkMode();
+    if (m_titleBrush)
+    {
+        m_titleBrush->SetColor(isDark ? D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.55f) : D2D1::ColorF(0.35f, 0.38f, 0.44f, 0.85f));
+    }
+    if (m_labelBrush)
+    {
+        m_labelBrush->SetColor(isDark ? D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.95f) : D2D1::ColorF(0.08f, 0.09f, 0.12f, 0.95f));
+    }
+    if (m_trackBrush)
+    {
+        m_trackBrush->SetColor(isDark ? D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.10f) : D2D1::ColorF(0.0f, 0.0f, 0.0f, 0.08f));
     }
 
     float left = cardBounds.left + 24.0f;

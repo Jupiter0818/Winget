@@ -50,6 +50,9 @@ std::filesystem::path ConfigManager::ResolveConfigPath()
 
 void ConfigManager::ResetToDefault()
 {
+    m_config.themeMode = "system";
+    m_config.snapToGrid = true;
+    m_config.lockPosition = false;
     m_config.widgets.clear();
 
     WidgetConfig defaultClock;
@@ -118,6 +121,9 @@ bool ConfigManager::Load()
     }
 
     m_config.widgets.clear();
+    m_config.themeMode = root.Contains("themeMode") ? root["themeMode"].AsString("system") : "system";
+    m_config.snapToGrid = root.Contains("snapToGrid") ? root["snapToGrid"].AsBool(true) : true;
+    m_config.lockPosition = root.Contains("lockPosition") ? root["lockPosition"].AsBool(false) : false;
     const auto& widgetsArr = root["widgets"].AsArray();
 
     for (const auto& item : widgetsArr)
@@ -166,6 +172,9 @@ bool ConfigManager::Save()
         arr.PushBack(std::move(obj));
     }
 
+    root.Set("themeMode", JsonValue(m_config.themeMode));
+    root.Set("snapToGrid", JsonValue(m_config.snapToGrid));
+    root.Set("lockPosition", JsonValue(m_config.lockPosition));
     root.Set("widgets", std::move(arr));
 
     std::string jsonStr = root.Serialize(4);
@@ -221,6 +230,23 @@ void ConfigManager::UpdateWidgetPosition(const std::string& id, int x, int y)
     {
         m_config.widgets[0].x = x;
         m_config.widgets[0].y = y;
+    }
+}
+
+void ConfigManager::UpdateWidgetTheme(const std::string& id, const std::string& theme)
+{
+    for (auto& cfg : m_config.widgets)
+    {
+        if (cfg.id == id)
+        {
+            cfg.theme = theme;
+            return;
+        }
+    }
+
+    if (m_config.widgets.size() == 1)
+    {
+        m_config.widgets[0].theme = theme;
     }
 }
 

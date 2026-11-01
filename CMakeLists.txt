@@ -15,9 +15,12 @@ add_executable(Windget WIN32
     src/core/MonitorManager.cpp
     src/core/TrayManager.cpp
     src/core/AutoStartManager.cpp
+    src/core/MediaManager.cpp
+    src/core/ThemeManager.cpp
     src/widgets/ClockWidget.cpp
     src/widgets/CalendarWidget.cpp
     src/widgets/SystemMonitorWidget.cpp
+    src/widgets/MusicWidget.cpp
     src/utils/JsonUtils.cpp
 )
 
@@ -30,6 +33,7 @@ target_link_libraries(Windget PRIVATE
     gdi32
     d2d1
     dwrite
+    windowscodecs
     ole32
     shell32
     advapi32

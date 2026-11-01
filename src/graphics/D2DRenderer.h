@@ -48,18 +48,18 @@ private:
     void DiscardDeviceResources();
 
 private:
-    static constexpr float PADDING = 20.0f;       // 阴影与微光羽化外边距
+    static constexpr float PADDING = 2.0f;        // 剔除外扩散投影，仅保留 2px 边缘亚像素抗锯齿缓冲
     static constexpr float CORNER_RADIUS = 22.0f; // macOS 风格圆角半径
 
     // 工厂接口
     ComPtr<ID2D1Factory> m_d2dFactory;
     ComPtr<IDWriteFactory> m_dwriteFactory;
 
-    // Direct2D 渲染目标与画刷
+    // Direct2D 渲染目标与毛玻璃画刷
     ComPtr<ID2D1DCRenderTarget> m_dcRenderTarget;
-    ComPtr<ID2D1SolidColorBrush> m_cardBrush;
-    ComPtr<ID2D1SolidColorBrush> m_borderBrush;
-    ComPtr<ID2D1SolidColorBrush> m_shadowBrush;
+    ComPtr<ID2D1LinearGradientBrush> m_frostedGlassBrush;
+    ComPtr<ID2D1LinearGradientBrush> m_glassBorderBrush;
+    ComPtr<ID2D1SolidColorBrush> m_glassHighlightBrush;
 
     // 内存位图与设备上下文 (用于 32-bit ARGB UpdateLayeredWindow)
     HDC m_memDC = nullptr;

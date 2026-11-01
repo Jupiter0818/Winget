@@ -1,4 +1,5 @@
 #include "widgets/CalendarWidget.h"
+#include "core/ThemeManager.h"
 #include <ctime>
 #include <string>
 
@@ -205,41 +206,67 @@ void CalendarWidget::Render(
         return;
     }
 
-    // 初始化画刷
+    // 初始化画刷并适配深浅色模式
+    bool isDark = ThemeManager::GetInstance().IsDarkMode();
+
     if (!m_accentBrush)
     {
         target->CreateSolidColorBrush(
-            D2D1::ColorF(1.0f, 0.28f, 0.24f, 1.0f), // macOS 经典番茄红
+            isDark ? D2D1::ColorF(1.0f, 0.28f, 0.24f, 1.0f) : D2D1::ColorF(0.92f, 0.18f, 0.14f, 1.0f),
             m_accentBrush.GetAddressOf()
         );
     }
+    else
+    {
+        m_accentBrush->SetColor(isDark ? D2D1::ColorF(1.0f, 0.28f, 0.24f, 1.0f) : D2D1::ColorF(0.92f, 0.18f, 0.14f, 1.0f));
+    }
+
     if (!m_textPrimaryBrush)
     {
         target->CreateSolidColorBrush(
-            D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.95f),
+            isDark ? D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.95f) : D2D1::ColorF(0.08f, 0.09f, 0.12f, 0.95f),
             m_textPrimaryBrush.GetAddressOf()
         );
     }
+    else
+    {
+        m_textPrimaryBrush->SetColor(isDark ? D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.95f) : D2D1::ColorF(0.08f, 0.09f, 0.12f, 0.95f));
+    }
+
     if (!m_textSecondaryBrush)
     {
         target->CreateSolidColorBrush(
-            D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.45f),
+            isDark ? D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.45f) : D2D1::ColorF(0.35f, 0.38f, 0.44f, 0.75f),
             m_textSecondaryBrush.GetAddressOf()
         );
     }
+    else
+    {
+        m_textSecondaryBrush->SetColor(isDark ? D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.45f) : D2D1::ColorF(0.35f, 0.38f, 0.44f, 0.75f));
+    }
+
     if (!m_dividerBrush)
     {
         target->CreateSolidColorBrush(
-            D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.12f),
+            isDark ? D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.12f) : D2D1::ColorF(0.0f, 0.0f, 0.0f, 0.08f),
             m_dividerBrush.GetAddressOf()
         );
     }
+    else
+    {
+        m_dividerBrush->SetColor(isDark ? D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.12f) : D2D1::ColorF(0.0f, 0.0f, 0.0f, 0.08f));
+    }
+
     if (!m_todayCircleBrush)
     {
         target->CreateSolidColorBrush(
-            D2D1::ColorF(1.0f, 0.28f, 0.24f, 0.90f),
+            isDark ? D2D1::ColorF(1.0f, 0.28f, 0.24f, 0.90f) : D2D1::ColorF(0.92f, 0.20f, 0.16f, 0.95f),
             m_todayCircleBrush.GetAddressOf()
         );
+    }
+    else
+    {
+        m_todayCircleBrush->SetColor(isDark ? D2D1::ColorF(1.0f, 0.28f, 0.24f, 0.90f) : D2D1::ColorF(0.92f, 0.20f, 0.16f, 0.95f));
     }
 
     // ==========================================

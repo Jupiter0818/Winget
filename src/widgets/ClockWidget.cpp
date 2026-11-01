@@ -1,4 +1,5 @@
 #include "widgets/ClockWidget.h"
+#include "core/ThemeManager.h"
 #include <ctime>
 
 namespace Windget {
@@ -121,21 +122,31 @@ void ClockWidget::Render(
         return;
     }
 
-    // 确保文本画刷有效
+    // 确保文本画刷有效并适配深浅色模式
+    bool isDark = ThemeManager::GetInstance().IsDarkMode();
+
     if (!m_timeBrush)
     {
         target->CreateSolidColorBrush(
-            D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.96f),
+            isDark ? D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.96f) : D2D1::ColorF(0.08f, 0.09f, 0.12f, 0.95f),
             m_timeBrush.GetAddressOf()
         );
+    }
+    else
+    {
+        m_timeBrush->SetColor(isDark ? D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.96f) : D2D1::ColorF(0.08f, 0.09f, 0.12f, 0.95f));
     }
 
     if (!m_dateBrush)
     {
         target->CreateSolidColorBrush(
-            D2D1::ColorF(0.92f, 0.92f, 0.96f, 0.62f),
+            isDark ? D2D1::ColorF(0.92f, 0.92f, 0.96f, 0.62f) : D2D1::ColorF(0.35f, 0.38f, 0.44f, 0.85f),
             m_dateBrush.GetAddressOf()
         );
+    }
+    else
+    {
+        m_dateBrush->SetColor(isDark ? D2D1::ColorF(0.92f, 0.92f, 0.96f, 0.62f) : D2D1::ColorF(0.35f, 0.38f, 0.44f, 0.85f));
     }
 
     // 绘制时间文本

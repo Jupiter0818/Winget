@@ -1,6 +1,8 @@
 #include <windows.h>
 #include "core/WidgetManager.h"
 #include "core/TrayManager.h"
+#include "core/MediaManager.h"
+#include "core/ThemeManager.h"
 
 // ===============================================
 // Windget - Windows Desktop Widget Engine
@@ -31,7 +33,10 @@ int WINAPI WinMain(
         }
     }
 
-    // 3. 初始化 WidgetManager 管理器 (自动恢复配置中的小组件)
+    // 3. 初始化全局主题与深浅色模式
+    Windget::ThemeManager::GetInstance().Initialize();
+
+    // 4. 初始化 WidgetManager 管理器 (自动恢复配置中的小组件)
     auto& widgetManager = Windget::WidgetManager::GetInstance();
     widgetManager.Initialize(hInstance);
 
@@ -39,7 +44,10 @@ int WINAPI WinMain(
     auto& trayManager = Windget::TrayManager::GetInstance();
     trayManager.Initialize(hInstance);
 
-    // 5. 运行全局消息循环
+    // 5. 初始化媒体服务监听
+    Windget::MediaManager::GetInstance().Initialize();
+
+    // 6. 运行全局消息循环
     MSG msg{};
     while (GetMessageW(&msg, nullptr, 0, 0) > 0)
     {
@@ -47,7 +55,8 @@ int WINAPI WinMain(
         DispatchMessageW(&msg);
     }
 
-    // 6. 退出并清理全部系统托盘、小组件及 COM 环境
+    // 7. 退出并清理全部媒体服务、系统托盘、小组件及 COM 环境
+    Windget::MediaManager::GetInstance().Shutdown();
     trayManager.Shutdown();
     widgetManager.Shutdown();
     CoUninitialize();

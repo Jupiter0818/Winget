@@ -4,6 +4,7 @@
 #include "widgets/ClockWidget.h"
 #include "widgets/CalendarWidget.h"
 #include "widgets/SystemMonitorWidget.h"
+#include "widgets/MusicWidget.h"
 #include <algorithm>
 
 namespace Windget {
@@ -36,6 +37,10 @@ bool WidgetManager::Initialize(HINSTANCE hInstance)
 
     RegisterWidgetType("system", [](const std::string& id) -> std::shared_ptr<IWidget> {
         return std::make_shared<SystemMonitorWidget>(id.empty() ? "system_default" : id);
+    });
+
+    RegisterWidgetType("music", [](const std::string& id) -> std::shared_ptr<IWidget> {
+        return std::make_shared<MusicWidget>(id.empty() ? "music_default" : id);
     });
 
     // 2. 从 %APPDATA%\Windget\config.json 加载配置
