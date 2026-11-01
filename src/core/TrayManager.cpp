@@ -4,6 +4,7 @@
 #include "core/AutoStartManager.h"
 #include <cmath>
 #include <cstdint>
+#include <vector>
 
 namespace Windget {
 
@@ -33,7 +34,12 @@ bool TrayManager::Initialize(HINSTANCE hInstance)
     }
 
     m_hIcon = CreateAppTrayIcon();
-    return AddOrUpdateTrayIcon();
+    bool added = AddOrUpdateTrayIcon();
+    if (added)
+    {
+        ShowBalloonNotification(L"Windget 桌面组件", L"已常驻在系统托盘，右键或双击托盘图标可进行管理。");
+    }
+    return added;
 }
 
 void TrayManager::Shutdown()
@@ -62,7 +68,7 @@ bool TrayManager::CreateMessageWindow(HINSTANCE hInstance)
 
     RegisterClassW(&wc);
 
-    // 使用无边框隐藏顶级窗口以正确接收系统广播 (如 TaskbarCreated)
+    // 使用隐藏无边框顶级窗口以正确接收系统广播 (如 TaskbarCreated)
     m_hwnd = CreateWindowExW(
         0,
         TRAY_CLASS_NAME,
@@ -75,7 +81,7 @@ bool TrayManager::CreateMessageWindow(HINSTANCE hInstance)
         this
     );
 
-    return (m_hwnd != nullptr);
+    return (m_hwnd != nullptr && IsWindow(m_hwnd));
 }
 
 HICON TrayManager::CreateAppTrayIcon()
@@ -101,7 +107,11 @@ HICON TrayManager::CreateAppTrayIcon()
         nullptr,
         0
     );
-    HBITMAP hMaskBmp = CreateCompatibleBitmap(hdc, size, size);
+
+    // 单色 1-bit mask bitmap，每行 32 位对齐
+    int maskPitch = ((size + 31) / 32) * 4;
+    std::vector<BYTE> maskBits(maskPitch * size, 0x00);
+    HBITMAP hMaskBmp = CreateBitmap(size, size, 1, 1, maskBits.data());
 
     if (hColorBmp && pixels)
     {
@@ -121,9 +131,9 @@ HICON TrayManager::CreateAppTrayIcon()
                 if (dist <= radius)
                 {
                     uint8_t a = 255;
-                    uint8_t r = 26;
-                    uint8_t g = 30;
-                    uint8_t b = 40;
+                    uint8_t r = 24;
+                    uint8_t g = 28;
+                    uint8_t b = 38;
 
                     // 浅青外环
                     if (dist >= radius - 2.0f)
@@ -170,12 +180,16 @@ HICON TrayManager::CreateAppTrayIcon()
     DeleteDC(memDC);
     ReleaseDC(nullptr, hdc);
 
-    return hIcon ? hIcon : LoadIconW(nullptr, MAKEINTRESOURCEW(32512));
+    if (!hIcon)
+    {
+        hIcon = LoadIconW(nullptr, MAKEINTRESOURCEW(32512));
+    }
+    return hIcon;
 }
 
 bool TrayManager::AddOrUpdateTrayIcon()
 {
-    if (!m_hwnd)
+    if (!m_hwnd || !IsWindow(m_hwnd))
     {
         return false;
     }
@@ -184,7 +198,7 @@ bool TrayManager::AddOrUpdateTrayIcon()
     m_nid.cbSize = sizeof(NOTIFYICONDATAW);
     m_nid.hWnd = m_hwnd;
     m_nid.uID = 1;
-    m_nid.uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP | NIF_SHOWTIP;
+    m_nid.uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP;
     m_nid.uCallbackMessage = WM_TRAYICON;
     m_nid.hIcon = m_hIcon;
 
@@ -193,6 +207,12 @@ bool TrayManager::AddOrUpdateTrayIcon()
 
     DWORD msg = m_iconAdded ? NIM_MODIFY : NIM_ADD;
     BOOL res = Shell_NotifyIconW(msg, &m_nid);
+    if (!res && !m_iconAdded)
+    {
+        Sleep(50);
+        res = Shell_NotifyIconW(NIM_ADD, &m_nid);
+    }
+
     if (res)
     {
         m_iconAdded = true;
@@ -202,7 +222,7 @@ bool TrayManager::AddOrUpdateTrayIcon()
 
 void TrayManager::RemoveTrayIcon()
 {
-    if (m_iconAdded && m_hwnd)
+    if (m_iconAdded && m_hwnd && IsWindow(m_hwnd))
     {
         Shell_NotifyIconW(NIM_DELETE, &m_nid);
         m_iconAdded = false;
@@ -211,7 +231,7 @@ void TrayManager::RemoveTrayIcon()
 
 void TrayManager::ShowBalloonNotification(const std::wstring& title, const std::wstring& message)
 {
-    if (!m_iconAdded || !m_hwnd)
+    if (!m_iconAdded || !m_hwnd || !IsWindow(m_hwnd))
     {
         return;
     }
@@ -325,6 +345,10 @@ LRESULT CALLBACK TrayManager::StaticTrayWindowProc(HWND hwnd, UINT uMsg, WPARAM 
         auto* pCreate = reinterpret_cast<CREATESTRUCTW*>(lParam);
         pThis = reinterpret_cast<TrayManager*>(pCreate->lpCreateParams);
         SetWindowLongPtrW(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(pThis));
+        if (pThis)
+        {
+            pThis->m_hwnd = hwnd;
+        }
     }
     else
     {
@@ -333,12 +357,12 @@ LRESULT CALLBACK TrayManager::StaticTrayWindowProc(HWND hwnd, UINT uMsg, WPARAM 
 
     if (pThis)
     {
-        return pThis->HandleMessage(uMsg, wParam, lParam);
+        return pThis->HandleMessage(hwnd, uMsg, wParam, lParam);
     }
     return DefWindowProcW(hwnd, uMsg, wParam, lParam);
 }
 
-LRESULT TrayManager::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
+LRESULT TrayManager::HandleMessage(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
     if (m_taskbarCreatedMsg != 0 && uMsg == m_taskbarCreatedMsg)
     {
@@ -351,19 +375,14 @@ LRESULT TrayManager::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
     {
     case WM_TRAYICON:
     {
-        switch (LOWORD(lParam))
+        UINT evt = LOWORD(lParam);
+        if (evt == WM_RBUTTONUP || evt == WM_CONTEXTMENU)
         {
-        case WM_RBUTTONUP:
-        case WM_CONTEXTMENU:
             ShowContextMenu();
-            break;
-
-        case WM_LBUTTONDBLCLK:
+        }
+        else if (evt == WM_LBUTTONDBLCLK)
+        {
             WidgetManager::GetInstance().ToggleVisibility();
-            break;
-
-        default:
-            break;
         }
         return 0;
     }
@@ -376,7 +395,7 @@ LRESULT TrayManager::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
         break;
     }
 
-    return DefWindowProcW(m_hwnd, uMsg, wParam, lParam);
+    return DefWindowProcW(hwnd, uMsg, wParam, lParam);
 }
 
 } // namespace Windget

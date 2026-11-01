@@ -34,7 +34,7 @@ private:
     HICON CreateAppTrayIcon();
 
     static LRESULT CALLBACK StaticTrayWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
-    LRESULT HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam);
+    LRESULT HandleMessage(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
 private:
     static constexpr wchar_t TRAY_CLASS_NAME[] = L"Windget_TrayReceiverWindow";
