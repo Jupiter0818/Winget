@@ -16,6 +16,8 @@ add_executable(Windget WIN32
     src/core/TrayManager.cpp
     src/core/AutoStartManager.cpp
     src/widgets/ClockWidget.cpp
+    src/widgets/CalendarWidget.cpp
+    src/widgets/SystemMonitorWidget.cpp
     src/utils/JsonUtils.cpp
 )
 

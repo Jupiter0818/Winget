@@ -338,6 +338,8 @@ LRESULT WidgetWindow::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
         AppendMenuW(hMenu, MF_SEPARATOR, 0, nullptr);
 
         AppendMenuW(hSubAdd, MF_STRING, 1002, L"🕒 时钟组件 (Clock)");
+        AppendMenuW(hSubAdd, MF_STRING, 1006, L"📅 日历组件 (Calendar)");
+        AppendMenuW(hSubAdd, MF_STRING, 1007, L"⚡ 硬件监控 (System)");
         AppendMenuW(hMenu, MF_POPUP, reinterpret_cast<UINT_PTR>(hSubAdd), L"➕ 添加小组件");
 
         AppendMenuW(hMenu, MF_STRING, 1003, L"🔄 刷新此组件");
@@ -372,6 +374,14 @@ LRESULT WidgetWindow::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
         else if (cmd == 1002)
         {
             WidgetManager::GetInstance().AddWidgetAtDefaultPosition("clock");
+        }
+        else if (cmd == 1006)
+        {
+            WidgetManager::GetInstance().AddWidgetAtDefaultPosition("calendar");
+        }
+        else if (cmd == 1007)
+        {
+            WidgetManager::GetInstance().AddWidgetAtDefaultPosition("system");
         }
         else if (cmd == 1003)
         {

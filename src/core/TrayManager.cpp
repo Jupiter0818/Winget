@@ -255,6 +255,8 @@ void TrayManager::ShowContextMenu()
 
     // ➕ 添加小组件子菜单
     AppendMenuW(hSubAdd, MF_STRING, IDM_TRAY_ADD_CLOCK, L"🕒 时钟组件 (Clock)");
+    AppendMenuW(hSubAdd, MF_STRING, IDM_TRAY_ADD_CALENDAR, L"📅 日历组件 (Calendar)");
+    AppendMenuW(hSubAdd, MF_STRING, IDM_TRAY_ADD_SYSTEM, L"⚡ 硬件监控 (System)");
     AppendMenuW(hMenu, MF_POPUP, reinterpret_cast<UINT_PTR>(hSubAdd), L"➕ 添加小组件");
 
     AppendMenuW(hMenu, MF_STRING, IDM_TRAY_REFRESH_ALL, L"🔄 刷新全部组件");
@@ -296,6 +298,14 @@ void TrayManager::ShowContextMenu()
     {
     case IDM_TRAY_ADD_CLOCK:
         WidgetManager::GetInstance().AddWidgetAtDefaultPosition("clock");
+        break;
+
+    case IDM_TRAY_ADD_CALENDAR:
+        WidgetManager::GetInstance().AddWidgetAtDefaultPosition("calendar");
+        break;
+
+    case IDM_TRAY_ADD_SYSTEM:
+        WidgetManager::GetInstance().AddWidgetAtDefaultPosition("system");
         break;
 
     case IDM_TRAY_REFRESH_ALL:

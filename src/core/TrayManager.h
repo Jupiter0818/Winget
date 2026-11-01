@@ -43,13 +43,15 @@ private:
     enum MenuItemId {
         IDM_TRAY_TITLE = 2000,
         IDM_TRAY_ADD_CLOCK = 2001,
-        IDM_TRAY_REFRESH_ALL = 2002,
-        IDM_TRAY_TOGGLE_SHOW = 2003,
-        IDM_TRAY_RESET_POSITION = 2004,
-        IDM_TRAY_AUTO_START = 2005,
-        IDM_TRAY_OPEN_CONFIG = 2006,
-        IDM_TRAY_GITHUB = 2007,
-        IDM_TRAY_EXIT = 2008
+        IDM_TRAY_ADD_CALENDAR = 2002,
+        IDM_TRAY_ADD_SYSTEM = 2003,
+        IDM_TRAY_REFRESH_ALL = 2004,
+        IDM_TRAY_TOGGLE_SHOW = 2005,
+        IDM_TRAY_RESET_POSITION = 2006,
+        IDM_TRAY_AUTO_START = 2007,
+        IDM_TRAY_OPEN_CONFIG = 2008,
+        IDM_TRAY_GITHUB = 2009,
+        IDM_TRAY_EXIT = 2010
     };
 
     HINSTANCE m_hInstance = nullptr;

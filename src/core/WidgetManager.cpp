@@ -2,6 +2,8 @@
 #include "core/ConfigManager.h"
 #include "core/MonitorManager.h"
 #include "widgets/ClockWidget.h"
+#include "widgets/CalendarWidget.h"
+#include "widgets/SystemMonitorWidget.h"
 #include <algorithm>
 
 namespace Windget {
@@ -23,9 +25,17 @@ bool WidgetManager::Initialize(HINSTANCE hInstance)
 {
     m_hInstance = hInstance;
 
-    // 1. 注册内置 Clock Widget 工厂
+    // 1. 注册内置 Widget 工厂
     RegisterWidgetType("clock", [](const std::string& id) -> std::shared_ptr<IWidget> {
         return std::make_shared<ClockWidget>(id.empty() ? "clock_default" : id);
+    });
+
+    RegisterWidgetType("calendar", [](const std::string& id) -> std::shared_ptr<IWidget> {
+        return std::make_shared<CalendarWidget>(id.empty() ? "calendar_default" : id);
+    });
+
+    RegisterWidgetType("system", [](const std::string& id) -> std::shared_ptr<IWidget> {
+        return std::make_shared<SystemMonitorWidget>(id.empty() ? "system_default" : id);
     });
 
     // 2. 从 %APPDATA%\Windget\config.json 加载配置
