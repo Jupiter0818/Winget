@@ -34,3 +34,13 @@ target_link_libraries(Windget PRIVATE
     shell32
     advapi32
 )
+
+# 静态链接 MinGW 运行时，消除对 libgcc / libstdc++ 的外部 DLL 依赖
+if(MINGW)
+    target_link_options(Windget PRIVATE -static -static-libgcc -static-libstdc++ -s)
+endif()
+
+# 设置发行包输出目录为项目根目录下的 dist/
+set_target_properties(Windget PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/dist"
+)

@@ -96,6 +96,10 @@ Windget
 ├── LICENSE
 ├── README.md
 │
+├── dist                         # 绿色独立发行目录
+│   ├── Windget.exe              # 单文件独立可执行程序 (~1.3MB，全静态链接)
+│   └── Windget-v1.0.0-windows-x64.zip
+│
 └── src
     ├── main.cpp                 # 引擎启动主入口
     │
@@ -103,14 +107,19 @@ Windget
     │   ├── DesktopManager       # Windows 桌面层级锚定与 Explorer 自愈
     │   ├── WidgetWindow         # 通用原生桌面分层宿主窗口
     │   ├── WidgetManager        # 小组件全局生命周期与注册中心
-    │   └── ConfigManager        # 配置加载、实时存储与自愈
+    │   ├── ConfigManager        # 配置加载、实时存储与自愈
+    │   ├── MonitorManager       # 多显示器跨屏与 Per-Monitor V2 DPI 适配
+    │   ├── TrayManager          # Windows 系统托盘常驻与右键菜单调度
+    │   └── AutoStartManager     # 注册表开机自启动管理
     │
     ├── graphics                 # 渲染管线
     │   └── D2DRenderer          # Direct2D/DirectWrite 硬件加速、阴影与分层输出
     │
     ├── widgets                  # 小组件业务实现
     │   ├── IWidget.h            # 小组件统一抽象基类
-    │   └── ClockWidget          # 独立时钟小组件
+    │   ├── ClockWidget          # 独立时钟小组件
+    │   ├── CalendarWidget       # macOS 风格精致月历小组件
+    │   └── SystemMonitorWidget  # CPU/内存实时硬件监控小组件
     │
     └── utils                    # 辅助工具
         └── JsonUtils            # 零依赖轻量 C++17 JSON 解析与序列化器
@@ -118,61 +127,71 @@ Windget
 
 ---
 
-## 编译与构建
+## 编译与发行打包
 
 ### 开发环境要求
 - **操作系统**：Windows 10 / Windows 11 (64-bit)
 - **构建工具**：CMake 3.20 或更高版本
 - **编译器**：支持 C++17 的编译器（MinGW-w64 GCC 10+ 或 MSVC 2019+）
 
-### 使用 MinGW 编译
+### 一键编译生成绿色独立单文件程序
 
 ```powershell
-# 1. 生成构建目录
+# 1. 生成构建配置
 cmake -S . -B build -G "MinGW Makefiles"
 
-# 2. 编译 Release 版本
+# 2. 编译 Release 发行版 (自动静态链接 MinGW 运行时并剥离调试符号)
 cmake --build build --config Release
 ```
 
-### 使用 Visual Studio / MSVC 编译
-
-```powershell
-cmake -S . -B build
-cmake --build build --config Release
-```
+编译完成后，会在项目根目录下的 **`dist/`** 目录生成：
+- **`dist/Windget.exe`**：完全独立、单文件绿色免安装可执行程序（无任何第三方 DLL 依赖，纯 Win32 原生依赖）。
+- 支持直接双击启动，在任意 Windows 10/11 电脑上均可即开即用！
 
 ---
 
-## 运行与使用
+## 运行与交互
 
-编译完成后直接运行：
+直接运行 `dist/Windget.exe`：
 
 ```powershell
-.\build\Windget.exe
+Start-Process .\dist\Windget.exe
 ```
 
-- **移动位置**：鼠标左键按住小组件卡片任意位置拖动，松开即刻自动保存新坐标。
-- **退出程序**：在小组件上点击鼠标右键，在菜单中选择“**退出 Windget**”。
-- **层级测试**：按下 `Win + D` 快捷键，小组件稳固保留在桌面壁纸上；打开任何窗口拖动到小组件上方，窗口自然覆盖小组件。
+### 1. 桌面小组件交互
+- **自由拖拽**：鼠标左键按住任意小组件卡片即可在桌面拖动，松开即刻自动持久化保存新坐标到 `%APPDATA%\Windget\config.json`。
+- **右键组件菜单**：在桌面的任意小组件上点击鼠标右键：
+  - `➕ 添加小组件`（随时增添时钟、日历或性能监控组件）
+  - `🔄 刷新此组件`
+  - `🗑️ 移除此组件`（自由删除桌面多余组件）
+  - `💻 恢复默认位置`（一键重排至屏幕安全工作区）
+  - `❌ 退出 Windget`
+
+### 2. 系统任务栏托盘（右下角）
+- **双击托盘图标**：一键快速显示 / 隐藏桌面上全部小组件（老板键）。
+- **右键托盘图标**：
+  - 增删小组件、刷新全部组件、恢复默认位置
+  - `🚀 开机自启动`（自动同步 Windows 注册表 Run 键，勾选状态实时显示）
+  - `📂 打开配置文件目录`（直接在资源管理器中定位并打开 `%APPDATA%\Windget`）
+  - `🌐 项目 GitHub 主页`
+  - `❌ 退出 Windget`
 
 ---
 
 ## 开发路线图（Roadmap）
 
 - [x] **Phase 1: Clock Widget 原型验证**（基础 Win32 窗口、拖拽、定时刷新、不抢焦点）
-- [x] **Phase 2: 升级 Direct2D / DirectWrite 渲染系统**（真 32-bit Alpha、大圆角半透明卡片、柔和阴影、高质量字体排版）
-- [x] **Phase 3: 桌面层级深度集成**（Progman 桌面锚定、不压制普通窗口、`Win + D` 驻留不最小化）
-- [x] **Phase 4 & 5: 架构重构**（`IWidget` 抽象基类、`WidgetWindow` 宿主、`WidgetManager` 平台管理）
+- [x] **Phase 2: Direct2D / DirectWrite 现代化渲染系统**（真 32-bit Alpha、大圆角半透明卡片、柔和弥散阴影、矢量字体排版）
+- [x] **Phase 3: 桌面层级深度集成**（Progman 所有者锚定、不压制普通窗口、`Win + D` 驻留不最小化、Explorer 重启自愈）
+- [x] **Phase 4 & 5: 面向对象架构重构**（`IWidget` 抽象基类、`WidgetWindow` 宿主、`WidgetManager` 平台管理）
 - [x] **Phase 6: 配置持久化系统**（自研轻量 JSON、`%APPDATA%` 存储、便携模式、拖动即存、启动恢复）
-- [ ] **Phase 7: 多显示器与 Per-Monitor 高 DPI 进阶优化**（支持负坐标屏幕、不同缩放比跨屏自适应）
-- [ ] **Phase 8: 系统托盘入口（System Tray）**（常驻轻量托盘菜单，支持动态添加/移除小组件）
-- [ ] **Phase 9: 开机自动启动**（Windows 用户注册表 Run 或 Startup 注入）
-- [ ] **Phase 10: 丰富小组件库**：
-  - [ ] 日历小组件（Calendar Widget）
-  - [ ] 天气小组件（Weather Widget）
-  - [ ] 媒体播放监控（Music Widget）
-  - [ ] 硬件性能监控（System Monitor Widget）
+- [x] **Phase 7: 多显示器与 Per-Monitor V2 高 DPI 进阶适配**（负坐标多屏支持、跨屏动态 DPI 缩放、断开副屏越界自愈）
+- [x] **Phase 8: 系统任务栏托盘常驻与右键菜单**（Shell_NotifyIcon、Explorer 崩溃重连、双击显隐、开机自启切换）
+- [x] **Phase 9: 丰富小组件库**：
+  - [x] 时钟组件（`ClockWidget`，大字号时间 + 星期日期）
+  - [x] 日历组件（`CalendarWidget`，macOS 风格月历网格与今日高亮）
+  - [x] 硬件监控组件（`SystemMonitorWidget`，CPU & 内存真实使用率与双进度条）
+- [x] **Phase 10: 绿色单文件发行打包**（静态链接消除 DLL 依赖，体积仅 ~1.3MB）
 
 ---
 
